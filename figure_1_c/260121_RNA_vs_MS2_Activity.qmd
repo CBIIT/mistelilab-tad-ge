@@ -3,13 +3,15 @@ title: "Figure 1 C: Quantification of MYC nascent RNA signals using DNA/RNA HiFI
 cells or a MS2-tagged MYC reporter in living HBEC cells"
 author: "Faisal Almansour"
 date: today
-output: github_document
+date-format: long
+format: gfm
+editor: source
 ---
 
 Analysis setup If you cloned or copied this folder, restore the exact package versions with: `renv::restore()`
 
 ```{r load-libraries}
-here::i_am("figure_1_c/260121_RNA_vs_MS2_activity.Rmd")
+here::i_am("figure_1_c/260121_RNA_vs_MS2_activity.qmd")
 
 library(tidyverse)
 library(data.table)
