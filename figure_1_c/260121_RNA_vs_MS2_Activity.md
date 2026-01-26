@@ -8,7 +8,8 @@ output: github_document
 
 Analysis setup If you cloned or copied this folder, restore the exact package versions with: `renv::restore()`
 
-```{r load-libraries}
+
+``` r
 here::i_am("figure_1_c/260121_RNA_vs_MS2_activity.Rmd")
 
 library(tidyverse)
@@ -24,51 +25,29 @@ set.seed(1234)
 
 Adjust and standarize figures width and height
 
-```{r set-options, include=FALSE, warning=FALSE}
-knitr::opts_chunk$set(
-  fig.path = "output/",
-  fig.width = 15,
-  fig.height = 7,
-  message = FALSE,
-  warning = FALSE
-)
-```
+
 
 Plot text size settings, set the relative size for all the fonts in all the plots. A value of 1 keeps is as it is. Values \> 1 make fonts larger. Value \< 1 make fonts smaller. Play around with it.
 
-```{r set-font-size}
+
+``` r
 new_size <- 1.5
 ```
 
-```{r set-theme, include = FALSE}
-theme_set(theme_bw())
-theme_update(
-  axis.text.x = element_text(
-    angle = -45,
-    hjust = 0,
-    vjust = 0.5,
-    size = rel(new_size)
-  ),
-  axis.text.y = element_text(hjust = 0, size = rel(new_size)),
-  axis.title = element_text(size = rel(new_size)),
-  legend.text = element_text(size = rel(new_size)),
-  legend.title = element_text(size = rel(new_size)),
-  strip.text = element_text(size = rel(new_size)),
-  title = element_text(size = rel(new_size))
-)
-source(here("figure_1_c", "helpers", "plot_functions.R"))
-```
+
 
 Image acquisition and analysis conditions Specify x,y pixel size (microns) and z-step (microns).
 
-```{r set-resolution}
+
+``` r
 xy_res <- 0.108
 z_step <- 0.1
 ```
 
 Read the metadata
 
-```{r}
+
+``` r
 metadata_index <- tibble::tibble(
   experiment = c("Exp1_RNA", "Exp2_RNA", "Exp1_MS2", "Exp2_MS2"),
   metadata_path = here::here(
@@ -109,33 +88,12 @@ md_tbl_join <- md_tbl %>%
 
 ### Plates layout
 
-```{r treat_layout, echo=FALSE}
-md_tbl %>%
-  dplyr::group_split(experiment) %>%
-  purrr::walk(
-    ~ {
-      df <- .x %>%
-        dplyr::mutate(
-          column = suppressWarnings(as.integer(column)),
-          row = dplyr::case_when(
-            grepl("^[A-Za-z]+$", row) ~ match(toupper(row), LETTERS),
-            TRUE ~ suppressWarnings(as.integer(row))
-          )
-        )
-      print(plot_plate(
-        df,
-        property = treat,
-        legend = "Treatment",
-        title = as.character(df$experiment[1])
-      ))
-      invisible(NULL)
-    }
-  )
-```
+![plot of chunk treat_layout](output/treat_layout-1.png)![plot of chunk treat_layout](output/treat_layout-2.png)![plot of chunk treat_layout](output/treat_layout-3.png)![plot of chunk treat_layout](output/treat_layout-4.png)
 
 Read object-level data
 
-```{r}
+
+``` r
 data_index <- tibble::tibble(
   experiment = c("Exp1_ms2", "Exp2_ms2", "Exp1_rna", "Exp2_rna"),
   data_path = here::here(
@@ -149,7 +107,8 @@ stopifnot(all(fs::dir_exists(data_index$data_path)))
 
 Set `glob` patterns for directory searches for cell level data and spot data,resepectively. The spot level data is stored in a single .csv file per well where all the spots in all the channels are stored. Read and process the cell-level data. Filter nuclei that are irregularly shaped (`solidity`) and that are too small (`area`).
 
-```{r read-cells}
+
+``` r
 cell_tbl <- data_index %>%
   dplyr::mutate(
     cell_csvs = purrr::map(
@@ -184,7 +143,8 @@ cell_tbl <- data_index %>%
 
 Read the spot-level CSVs (compact, per-experiment folders) Convert the x, y and z coordinates to microns (They were originally calculated in pixels) and filter spots that do not belong to any nucleus. These have a `cell_index` value of `0`.
 
-```{r read-spots}
+
+``` r
 spot_tbl <- data_index %>%
   dplyr::mutate(
     spot_csvs = purrr::map(
@@ -266,7 +226,8 @@ spot_tbl <- spot_tbl %>%
 
 Use the `spot_tbl` to calculate the number of spots per cell in each color.
 
-```{r calc-n-spots}
+
+``` r
 cell_n_spots_tbl <- spot_tbl %>%
   dplyr::group_by(
     experiment_key,
@@ -299,80 +260,20 @@ cell_counts <- cell_tbl %>%
   ) %>%
   dplyr::left_join(md_tbl_join, by = c("experiment_key", "row", "column")) %>%
   dplyr::filter(!is.na(treat))
-
 ```
 
 ### Histograms, MYC nascent RNA signals using DNA/RNA HiFISH in fixed HBEC cells or a MS2-tagged MYC reporter in living HBEC cells
 
-```{r spots-well, echo=F}
-channel_map <- tibble::tibble(experiment = unique(cell_counts$experiment)) %>%
-  dplyr::mutate(
-    channel_of_interest = dplyr::if_else(
-      grepl("_ms2$", experiment, TRUE),
-      1L,
-      4L
-    )
-  )
-
-cell_sel <- cell_counts %>%
-  dplyr::left_join(channel_map, by = "experiment") %>%
-  dplyr::mutate(
-    n_spots = dplyr::if_else(
-      channel_of_interest == 1L,
-      dplyr::coalesce(n_spots_channel_1, 0L),
-      dplyr::coalesce(n_spots_channel_4, 0L)
-    )
-  )
-
-ggplot2::ggplot(
-  cell_sel,
-  ggplot2::aes(x = n_spots, y = ggplot2::after_stat(density), fill = treat)
-) +
-  ggplot2::geom_histogram(binwidth = 1, boundary = -0.5, closed = "right") +
-  ggplot2::scale_x_continuous(breaks = 0:8) +
-  ggthemes::scale_fill_tableau(name = "Condition") +
-  ggplot2::coord_cartesian(xlim = c(-0.5, 8.5)) +
-  ggplot2::labs(x = "Number of spots per cell", y = "Density", title = "") +
-  ggplot2::facet_wrap(~experiment, ncol = 2)
-```
+![plot of chunk spots-well](output/spots-well-1.png)
 
 Combine Exp1 + Exp2 and classify 0/1/2/≥3
 
-```{r n-ms2-spots-well-combine, echo=F}
-cell_buckets_rep <- cell_sel %>%
-  dplyr::mutate(
-    assay_type = dplyr::if_else(grepl("_ms2$", experiment, TRUE), "MS2", "RNA"),
-    ms2_status = dplyr::case_when(
-      is.na(n_spots) ~ "0",
-      n_spots >= 3L ~ ">=3",
-      n_spots %in% c(0L, 1L, 2L) ~ as.character(n_spots),
-      TRUE ~ ">=3"
-    ),
-    ms2_status = factor(ms2_status, levels = c("0", "1", "2", ">=3"))
-  )
 
-freq_by_rep <- cell_buckets_rep %>%
-  dplyr::group_by(assay_type, experiment, ms2_status) %>%
-  dplyr::summarise(cells = dplyr::n(), .groups = "drop_last") %>%
-  dplyr::mutate(freq = cells / sum(cells)) %>%
-  dplyr::ungroup()
-
-summary_se <- freq_by_rep %>%
-  dplyr::group_by(assay_type, ms2_status) %>%
-  dplyr::summarise(
-    mean_freq = mean(freq, na.rm = TRUE),
-    se_freq = if (dplyr::n() > 1) {
-      stats::sd(freq, na.rm = TRUE) / sqrt(dplyr::n())
-    } else {
-      NA_real_
-    },
-    .groups = "drop"
-  )
-```
 
 Summary statistics and Wilcoxon tests
 
-```{r}
+
+``` r
 summary_stats <- freq_by_rep %>%
   dplyr::group_by(ms2_status, assay_type) %>%
   dplyr::summarise(
@@ -409,7 +310,8 @@ mw_results <- freq_by_rep %>%
 
 ### Numerical summaries (Mean, SD, Median, IQR) and statistical tests
 
-```{r}
+
+``` r
 replicate_table <- freq_by_rep %>%
   dplyr::group_by(assay_type, experiment) %>%
   dplyr::mutate(total_cells_per_exp = sum(cells)) %>%
@@ -421,7 +323,32 @@ knitr::kable(
   caption = "Replicate-level counts and frequencies per assay and category",
   digits = c(0, 0, 0, 3)
 )
+```
 
+
+
+Table: Replicate-level counts and frequencies per assay and category
+
+|assay_type |experiment |ms2_status | cells| freq| total_cells_per_exp|
+|:----------|:----------|:----------|-----:|----:|-------------------:|
+|MS2        |Exp1_ms2   |0          | 73329|    1|               97511|
+|MS2        |Exp1_ms2   |1          | 19336|    0|               97511|
+|MS2        |Exp1_ms2   |2          |  3605|    0|               97511|
+|MS2        |Exp1_ms2   |>=3        |  1241|    0|               97511|
+|MS2        |Exp2_ms2   |0          | 58128|    1|               69442|
+|MS2        |Exp2_ms2   |1          |  8894|    0|               69442|
+|MS2        |Exp2_ms2   |2          |  1540|    0|               69442|
+|MS2        |Exp2_ms2   |>=3        |   880|    0|               69442|
+|RNA        |Exp1_rna   |0          | 13110|    1|               15721|
+|RNA        |Exp1_rna   |1          |  2293|    0|               15721|
+|RNA        |Exp1_rna   |2          |   298|    0|               15721|
+|RNA        |Exp1_rna   |>=3        |    20|    0|               15721|
+|RNA        |Exp2_rna   |0          |  9992|    1|               14416|
+|RNA        |Exp2_rna   |1          |  3485|    0|               14416|
+|RNA        |Exp2_rna   |2          |   840|    0|               14416|
+|RNA        |Exp2_rna   |>=3        |    99|    0|               14416|
+
+``` r
 summary_stats <- freq_by_rep %>%
   dplyr::group_by(ms2_status, assay_type) %>%
   dplyr::summarise(
@@ -438,7 +365,24 @@ knitr::kable(
   caption = "Summary statistics per assay and category (across replicates)",
   digits = c(0, 0, 0, 3, 3, 3)
 )
+```
 
+
+
+Table: Summary statistics per assay and category (across replicates)
+
+|ms2_status |assay_type | n_reps| mean_freq| median_freq| sd_freq| se_freq|
+|:----------|:----------|------:|---------:|-----------:|-------:|-------:|
+|0          |MS2        |      2|     0.795|       0.795|   0.060|       0|
+|0          |RNA        |      2|     0.764|       0.764|   0.100|       0|
+|1          |MS2        |      2|     0.163|       0.163|   0.050|       0|
+|1          |RNA        |      2|     0.194|       0.194|   0.068|       0|
+|2          |MS2        |      2|     0.030|       0.030|   0.010|       0|
+|2          |RNA        |      2|     0.039|       0.039|   0.028|       0|
+|>=3        |MS2        |      2|     0.013|       0.013|   0.000|       0|
+|>=3        |RNA        |      2|     0.004|       0.004|   0.004|       0|
+
+``` r
 mw_results <- freq_by_rep %>%
   dplyr::mutate(
     ms2_status = factor(ms2_status, levels = c("0", "1", "2", ">=3")),
@@ -476,7 +420,20 @@ knitr::kable(
   digits = c(0, 0, 3, 3),
   align = "lrrr"
 )
+```
 
+
+
+Table: Wilcoxon (RNA vs MS2) for each category (0, 1, 2, ≥3) using per-experiment frequencies
+
+|ms2_status | n_RNA| n_MS2| p_value|p_adj | significance|
+|:----------|-----:|-----:|-------:|:-----|------------:|
+|0          |     2|     2|   0.699|1     |           ns|
+|1          |     2|     2|   0.699|1     |           ns|
+|2          |     2|     2|   1.000|1     |           ns|
+|>=3        |     2|     2|   0.245|1     |           ns|
+
+``` r
 summary_with_p <- summary_stats %>%
   dplyr::left_join(mw_results, by = "ms2_status") %>%
   dplyr::arrange(ms2_status, assay_type)
@@ -496,7 +453,24 @@ knitr::kable(
     p_adj = 3
   )
 )
+```
 
+
+
+Table: Summary statistics + Wilcoxon results (RNA vs MS2) per category
+
+|ms2_status |assay_type | n_reps| mean_freq| median_freq| sd_freq| se_freq| n_RNA| n_MS2| p_value| p_adj|significance |
+|:----------|:----------|------:|---------:|-----------:|-------:|-------:|-----:|-----:|-------:|-----:|:------------|
+|0          |MS2        |      2|     0.795|       0.795|       0|       0|     2|     2|       1| 0.931|ns           |
+|0          |RNA        |      2|     0.764|       0.764|       0|       0|     2|     2|       1| 0.931|ns           |
+|1          |MS2        |      2|     0.163|       0.163|       0|       0|     2|     2|       1| 0.931|ns           |
+|1          |RNA        |      2|     0.194|       0.194|       0|       0|     2|     2|       1| 0.931|ns           |
+|2          |MS2        |      2|     0.030|       0.030|       0|       0|     2|     2|       1| 1.000|ns           |
+|2          |RNA        |      2|     0.039|       0.039|       0|       0|     2|     2|       1| 1.000|ns           |
+|>=3        |MS2        |      2|     0.013|       0.013|       0|       0|     2|     2|       0| 0.931|ns           |
+|>=3        |RNA        |      2|     0.004|       0.004|       0|       0|     2|     2|       0| 0.931|ns           |
+
+``` r
 overall_cells_by_category <- freq_by_rep %>%
   dplyr::group_by(assay_type, ms2_status) %>%
   dplyr::summarise(total_cells = sum(cells), .groups = "drop") %>%
@@ -507,7 +481,24 @@ knitr::kable(
   caption = "Total cells by assay and category (pooled Exp1+Exp2)",
   digits = 0
 )
+```
 
+
+
+Table: Total cells by assay and category (pooled Exp1+Exp2)
+
+|assay_type |ms2_status | total_cells|
+|:----------|:----------|-----------:|
+|MS2        |0          |      131457|
+|MS2        |1          |       28230|
+|MS2        |2          |        5145|
+|MS2        |>=3        |        2121|
+|RNA        |0          |       23102|
+|RNA        |1          |        5778|
+|RNA        |2          |        1138|
+|RNA        |>=3        |         119|
+
+``` r
 overall_cells_by_assay <- freq_by_rep %>%
   dplyr::group_by(assay_type) %>%
   dplyr::summarise(total_cells = sum(cells), .groups = "drop")
@@ -519,106 +510,59 @@ knitr::kable(
 )
 ```
 
+
+
+Table: Total cells by assay (pooled across categories and replicates)
+
+|assay_type | total_cells|
+|:----------|-----------:|
+|MS2        |      166953|
+|RNA        |       30137|
+
 ### Figure 1C
 
-```{r figure, echo=F}
-rna_color <- "#7483A1"
-ms2_color <- "#8C857B"
-
-summary_se2 <- summary_se %>%
-  dplyr::mutate(
-    ms2_status = factor(ms2_status, levels = c("0", "1", "2", ">=3")),
-    assay_type = factor(assay_type, levels = c("RNA", "MS2"))
-  )
-
-freq_by_rep_pts <- freq_by_rep %>%
-  dplyr::mutate(
-    ms2_status = factor(ms2_status, levels = c("0", "1", "2", ">=3")),
-    assay_type = factor(assay_type, levels = c("RNA", "MS2"))
-  )
-
-mw_labels <- mw_results %>%
-  dplyr::mutate(
-    label = dplyr::case_when(
-      is.na(p_value) ~ "NA",
-      p_value < 0.001 ~ "***",
-      p_value < 0.01 ~ "**",
-      p_value < 0.05 ~ "*",
-      TRUE ~ "ns"
-    )
-  )
-
-sig_df <- summary_se2 %>%
-  dplyr::distinct(ms2_status) %>%
-  dplyr::mutate(x = as.numeric(ms2_status), y = 1.05) %>%
-  dplyr::left_join(
-    mw_labels %>% dplyr::select(ms2_status, label),
-    by = "ms2_status"
-  )
-
-pd <- ggplot2::position_dodge(width = 0.45)
-
-ggplot2::ggplot(
-  summary_se2,
-  ggplot2::aes(x = ms2_status, y = mean_freq, fill = assay_type)
-) +
-  ggplot2::geom_col(width = 0.85, position = pd) +
-  ggplot2::geom_errorbar(
-    ggplot2::aes(ymin = mean_freq - se_freq, ymax = mean_freq + se_freq),
-    width = 0.18,
-    position = pd,
-    linewidth = 0.6,
-    na.rm = TRUE
-  ) +
-  ggplot2::geom_point(
-    data = freq_by_rep_pts,
-    ggplot2::aes(
-      x = ms2_status,
-      y = freq,
-      fill = assay_type,
-      group = assay_type
-    ),
-    position = pd,
-    shape = 21,
-    size = 3,
-    color = "black",
-    stroke = 0.4,
-    alpha = 0.9,
-    show.legend = FALSE
-  ) +
-  ggplot2::geom_segment(
-    data = sig_df,
-    ggplot2::aes(x = x - 0.45, xend = x + 0.45, y = y, yend = y),
-    inherit.aes = FALSE,
-    linewidth = 0.6
-  ) +
-  ggplot2::geom_text(
-    data = sig_df,
-    ggplot2::aes(x = x, y = y + 0.03, label = label),
-    inherit.aes = FALSE,
-    size = 4
-  ) +
-  ggplot2::scale_y_continuous(limits = c(0, 1.1), breaks = seq(0, 1, 0.1)) +
-  ggplot2::scale_x_discrete(expand = ggplot2::expansion(mult = c(0.01, 0.01))) +
-  ggplot2::scale_fill_manual(values = c("RNA" = rna_color, "MS2" = ms2_color)) +
-  ggplot2::labs(x = "Number of RNA signals/cell", y = "Density", fill = NULL) +
-  ggplot2::theme_classic(base_size = 14) +
-  ggplot2::theme(
-    panel.grid = element_blank(),
-    panel.background = element_blank(),
-    plot.background = element_blank(),
-    axis.line = element_line(color = "black", linewidth = 0.6),
-    axis.ticks = element_line(color = "black"),
-    legend.position = "right",
-    legend.direction = "vertical",
-    legend.text = element_text(size = 12),
-    axis.title.x = element_text(margin = margin(t = 8)),
-    axis.title.y = element_text(margin = margin(r = 8))
-  )
-```
+![plot of chunk figure](output/figure-1.png)
 
 Session info
 
-```{r sessionInfo, include=TRUE, echo=TRUE, results="markup"}
+
+``` r
 sessionInfo()
+```
+
+```
+## R version 4.5.2 (2025-10-31)
+## Platform: aarch64-apple-darwin20
+## Running under: macOS Tahoe 26.2
+## 
+## Matrix products: default
+## BLAS:   /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib 
+## LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+## 
+## locale:
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
+## 
+## time zone: America/New_York
+## tzcode source: internal
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
+## 
+## other attached packages:
+##  [1] conflicted_1.2.0  ggthemes_5.2.0    fs_1.6.6          here_1.0.2        data.table_1.18.0
+##  [6] lubridate_1.9.4   forcats_1.0.1     stringr_1.6.0     dplyr_1.1.4       purrr_1.2.1      
+## [11] readr_2.1.6       tidyr_1.3.2       tibble_3.3.1      ggplot2_4.0.1     tidyverse_2.0.0  
+## 
+## loaded via a namespace (and not attached):
+##  [1] generics_0.1.4     renv_1.1.6         stringi_1.8.7      hms_1.1.4         
+##  [5] magrittr_2.0.4     evaluate_1.0.5     grid_4.5.2         timechange_0.3.0  
+##  [9] RColorBrewer_1.1-3 fastmap_1.2.0      rprojroot_2.1.1    scales_1.4.0      
+## [13] textshaping_1.0.4  cli_3.6.5          rlang_1.1.7        crayon_1.5.3      
+## [17] bit64_4.6.0-1      withr_3.0.2        cachem_1.1.0       yaml_2.3.12       
+## [21] tools_4.5.2        parallel_4.5.2     tzdb_0.5.0         memoise_2.0.1     
+## [25] vctrs_0.7.1        R6_2.6.1           lifecycle_1.0.5    bit_4.6.0         
+## [29] vroom_1.6.7        ragg_1.5.0         pkgconfig_2.0.3    pillar_1.11.1     
+## [33] gtable_0.3.6       glue_1.8.0         systemfonts_1.3.1  xfun_0.56         
+## [37] tidyselect_1.2.1   knitr_1.51         farver_2.1.2       labeling_0.4.3    
+## [41] compiler_4.5.2     S7_0.2.1
 ```
