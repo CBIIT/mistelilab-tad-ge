@@ -2,7 +2,7 @@
 HiFISH in fixed HBEC cells or a MS2-tagged MYC reporter in living HBEC
 cells
 Faisal Almansour
-January 26, 2026
+January 27, 2026
 
 Analysis setup If you cloned or copied this folder, restore the exact
 package versions with: `renv::restore()`
@@ -554,7 +554,7 @@ Total cells by assay (pooled across categories and replicates)
 
 ### Figure 1C
 
-![](output/figure-1.png)
+![](output/figure_1C-1.png)
 
 Session info
 

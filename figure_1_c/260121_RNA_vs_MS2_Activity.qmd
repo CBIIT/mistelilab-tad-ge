@@ -523,7 +523,7 @@ knitr::kable(
 
 ### Figure 1C
 
-```{r figure, echo=F}
+```{r figure_1C, echo=F}
 rna_color <- "#7483A1"
 ms2_color <- "#8C857B"
 
