@@ -1,5 +1,5 @@
 ---
-title: "Figure 2 (D-E): Measurement of boundary distances. Distance distributions of TAD boundary versus matched non-TAD region"
+title: Figure 2 (D-E), Measurement of boundary distances
 author: "Faisal Almansour"
 date: today
 date-format: long

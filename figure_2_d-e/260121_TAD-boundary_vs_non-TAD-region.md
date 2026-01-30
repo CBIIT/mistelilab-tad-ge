@@ -1,7 +1,6 @@
-# Figure 2 (D-E): Measurement of boundary distances. Distance
-distributions of TAD boundary versus matched non-TAD region
+# Figure 2 (D-E), Measurement of boundary distances
 Faisal Almansour
-January 29, 2026
+January 30, 2026
 
 Analysis setup If you cloned or copied this folder, restore the exact
 package versions with: `renv::restore()`
